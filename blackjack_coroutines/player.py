@@ -1,5 +1,5 @@
 from card import Card, Deck
-from blackjack_rules import BlackjackRules
+from blackjack_rules import calculate_hand_value
 
 class Player:
     def __init__(self, name, chips=1000):
