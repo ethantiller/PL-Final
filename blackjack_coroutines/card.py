@@ -3,7 +3,6 @@ import random
 class Card:
     SUITS = ['Hearts', 'Diamonds', 'Clubs', 'Spades']
     RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
-    FACES = ['J', 'Q', 'K']
     
     def __init__(self, suit, rank):
         
@@ -13,7 +12,7 @@ class Card:
             raise ValueError("Invalid suit or rank")
         
     def value(self):
-        if self.rank in self.FACES:
+        if self.rank in ['J', 'Q', 'K']:
             return 10
         elif self.rank == 'A':
             return 11
@@ -33,7 +32,8 @@ class Deck:
 
     def deal_card(self):
         if not self.cards:
-            raise ValueError("No cards left in the deck")
+            print("No cards left in the deck!")
+            return None
         return self.cards.pop()
     
     # def cards_remaining(self):

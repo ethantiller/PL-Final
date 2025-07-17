@@ -15,17 +15,11 @@ def start_game():
     
     # Shuffle the deck
     deck.shuffle()
-    print("\nDeck shuffled!")
-    
-    # Deal a few cards to show it works
-    print("\nDealing 5 cards:")
-    for i in range(5):
-        card = deck.deal_card()
-        print(f"Card {i+1}: {card}")
-    
-    print(f"\nCards remaining in deck: {len(deck.cards)}")
+    print("Deck contains: ")
+    for i, card in enumerate(deck.cards, 1):
+        print(f"{i:2d}. {card}")
     
 
 if __name__ == "__main__":
     start_game()
-    # This will be the main entry point for the game
+    
