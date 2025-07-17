@@ -1,3 +1,4 @@
+from blackjack_coroutines.player import Player
 from card import Card
 
 def calculate_hand_value(cards: list[Card]):
@@ -69,25 +70,44 @@ def calculate_payout(bet: int, result: str):
   else:
     raise ValueError("Invalid result. Must be 'win', 'lose', 'blackjack', or 'push'.")
   
-def determine_winner(player_hand: list[Card], dealer_hand: list[Card]):
+def determine_winners(player_hands: list[list[Card]], players: list[Player], dealer_hand: list[Card]):
   """
-  Determine the winner of a blackjack game.
-  - Compares the total values of the player's and dealer's hands.
-  - Returns **'player'** if the player wins, **'dealer'** if the dealer wins, and **'push'** if it's a tie.
+  Determine the winners of a blackjack game.
+  - Compares the total values of each player's hand and the dealer's hand.
+  - Returns a list of results: 'win', 'lose', 'push', or 'blackjack' for each player.
   """
-  
-  if is_bust(calculate_hand_value(player_hand)):
-    return 'dealer'
-  elif is_bust(calculate_hand_value(dealer_hand)):
-    return 'player'
-  elif calculate_hand_value(player_hand) > calculate_hand_value(dealer_hand):
-    return 'player'
-  elif calculate_hand_value(player_hand) < calculate_hand_value(dealer_hand):
-    return 'dealer'
-  else:
-    return 'push'
+  dealer_value = calculate_hand_value(dealer_hand)
+  dealer_bust = is_bust(dealer_hand)
+  dealer_blackjack = is_blackjack(dealer_hand)
+  results = []
 
-def get_valid_actions(player_hand: list[Card], dealer_hand: list[Card], bet: int):
+  for player_hand, player in zip(player_hands, players):
+    player_value = calculate_hand_value(player_hand)
+    player_blackjack = is_blackjack(player_hand)
+    
+    # Check for blackjack first
+    if player_blackjack and not dealer_blackjack:
+      results.append('blackjack')
+    elif player_blackjack and dealer_blackjack:
+      results.append('push')
+    elif dealer_blackjack and not player_blackjack:
+      results.append('lose')
+    # Check for bust
+    elif is_bust(player_hand):
+      results.append('lose')
+    elif dealer_bust:
+      results.append('win')
+    # Compare values
+    elif player_value > dealer_value:
+      results.append('win')
+    elif player_value < dealer_value:
+      results.append('lose')
+    else:
+      results.append('push')
+
+  return results
+
+def get_valid_actions(player_hand: list[Card], dealer_hand: list[Card]):
   """
   Get the valid actions for the player based on their hand and the dealer's hand.
   - Returns a list of valid actions: 'hit', 'stand', and optionally 'double' if the player can double down.

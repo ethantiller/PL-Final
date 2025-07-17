@@ -1,5 +1,6 @@
 from card import Card, Deck
 from blackjack_rules import calculate_hand_value
+import time
 
 class Player:
     def __init__(self, name, chips=1000):
@@ -12,6 +13,8 @@ class Player:
         self.name = name
         self.chips = chips
         self.hand = []
+        self.mustStand = False
+        self.current_bet = 0
         
     def place_bet(self, amount):
         """
@@ -19,16 +22,19 @@ class Player:
         Args:
             amount (int): The amount to bet.
         Returns:
-            None
+            bool: True if bet was placed successfully, False otherwise.
         """
         if amount > self.chips:
             print(f"{self.name} does not have enough chips to bet {amount}.")
+            return False
         elif amount <= 0:
             print(f"{self.name} cannot bet {amount}. Bet must be positive.")
+            return False
         else:
             self.chips -= amount
+            self.current_bet = amount
             print(f"{self.name} bets {amount}. Remaining chips: {self.chips}")
-        return amount
+            return True
         
     def add_card(self, card):
         """
@@ -39,6 +45,10 @@ class Player:
             None
         """
         self.hand.append(card)
+        
+        # Simulate a delay for realism
+        time.sleep(0.5)
+        
         print(f"{self.name} receives {card}. Current hand: {calculate_hand_value(self.hand)}")
         
         
@@ -62,7 +72,44 @@ class Player:
             None
         """
         self.hand = []
+        self.mustStand = False
+        self.current_bet = 0
         print(f"{self.name}'s hand has been reset.")
+        
+    def handle_hit(self, deck: Deck):
+        """
+        Handle the player's action to hit (draw a card).
+        """
+        card = deck.deal_card()
+        if card:
+            self.add_card(card)
+        else:
+            print("No more cards to deal.")
+    
+    def handle_stand(self):
+        """
+        Handle the player's action to stand (no more cards).
+        """
+        print(f"{self.name} stands with hand value: {calculate_hand_value(self.hand)}")
+    
+    def handle_double_down(self, deck: Deck):
+        """
+        Handle the player's action to double down.
+        - Doubles the bet and takes exactly one more card.
+        """
+        if self.chips >= self.current_bet:
+            self.chips -= self.current_bet
+            self.current_bet *= 2
+            print(f"{self.name} doubles down! New bet: {self.current_bet}")
+            card = deck.deal_card()
+            if card:
+                self.add_card(card)
+                self.mustStand = True
+                print(f"{self.name} receives one card and must stand.")
+            else:
+                print("No more cards to deal.")
+        else:
+            print(f"{self.name} doesn't have enough chips to double down.")
 
 class Dealer(Player):
 
