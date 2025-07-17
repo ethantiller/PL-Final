@@ -12,7 +12,6 @@ class Player:
         self.name = name
         self.chips = chips
         self.hand = []
-        pass
         
     def place_bet(self, amount):
         """
@@ -40,8 +39,7 @@ class Player:
             None
         """
         self.hand.append(card)
-        print(f"{self.name} receives {card}. Current hand: {self.show_hand()}")
-        pass
+        print(f"{self.name} receives {card}. Current hand: {self.calcuate_hand_value()}")
         
         
     def show_hand(self, hide_first=False):
@@ -56,7 +54,6 @@ class Player:
             return f"[Hidden], {', '.join(str(card) for card in self.hand[1:])}"
         else:
             return ', '.join(str(card) for card in self.hand)
-        pass
         
     def reset_hand(self):
         """
@@ -66,7 +63,6 @@ class Player:
         """
         self.hand = []
         print(f"{self.name}'s hand has been reset.")
-        pass
 
 class Dealer(Player):
 
@@ -81,7 +77,6 @@ class Dealer(Player):
             bool: True if the dealer should hit, False otherwise.
         """
         return self.calculate_hand_value() < 17
-        pass
     
     def show_hidden_card(self):
         """
@@ -90,4 +85,3 @@ class Dealer(Player):
             str: The dealer's hand with the first card hidden.
         """
         return self.show_hand(hide_first=True)
-        pass
