@@ -1,4 +1,4 @@
-from blackjack_coroutines.player import Player
+from player import Player
 from card import Card
 
 def calculate_hand_value(cards: list[Card]):
@@ -116,7 +116,3 @@ def get_valid_actions(player_hand: list[Card], dealer_hand: list[Card]):
   if can_double_down(player_hand):
     actions.append('double')
   return actions
-
-class BlackjackRules:
-  BLACKJACK_PAYOUT = 2.5
-  DEALER_HITS_SOFT_17 = True
