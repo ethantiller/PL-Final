@@ -1,23 +1,18 @@
-from card import Card, Deck
+from game_engine import GameEngine
 
 def start_game():
-    print("Starting the Blackjack game...")
+    """
+    Start the blackjack game.
+    - Initializes the game engine.
+    - Creates players and collects bets.
+    - Deals initial cards to players and dealer.
+    """
+    engine = GameEngine()
     
-    # Initialize a new deck
-    deck = Deck()
+    player_names = input("Enter player names (comma separated): ").split(',')
+    player_names = [name.strip() for name in player_names if name.strip()]
     
-    # Print all cards in the deck
-    print("Deck contains:")
-    for i, card in enumerate(deck.cards, 1):
-        print(f"{i:2d}. {card}")
-    
-    print(f"\nTotal cards in deck: {len(deck.cards)}")
-    
-    # Shuffle the deck
-    deck.shuffle()
-    print("Deck contains: ")
-    for i, card in enumerate(deck.cards, 1):
-        print(f"{i:2d}. {card}")
+    engine.start_game(player_names)
     
 
 if __name__ == "__main__":
