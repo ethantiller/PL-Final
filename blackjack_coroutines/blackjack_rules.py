@@ -1,4 +1,3 @@
-from player import Player
 from card import Card
 
 def calculate_hand_value(cards: list[Card]):
@@ -70,7 +69,7 @@ def calculate_payout(bet: int, result: str):
   else:
     raise ValueError("Invalid result. Must be 'win', 'lose', 'blackjack', or 'push'.")
   
-def determine_winners(player_hands: list[list[Card]], players: list[Player], dealer_hand: list[Card]):
+def determine_winners(player_hands: list[list[Card]], players: list['Player'], dealer_hand: list[Card]):
   """
   Determine the winners of a blackjack game.
   - Compares the total values of each player's hand and the dealer's hand.
