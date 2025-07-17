@@ -39,7 +39,7 @@ class Player:
             None
         """
         self.hand.append(card)
-        print(f"{self.name} receives {card}. Current hand: {self.calcuate_hand_value()}")
+        print(f"{self.name} receives {card}. Current hand: {calculate_hand_value(self.hand)}")
         
         
     def show_hand(self, hide_first=False):
