@@ -1,7 +1,6 @@
-import asyncio
 from player import Player, Dealer
 from blackjack_rules import *
-from card import Card, Deck
+from card import Deck
 
 def initial_deal(deck: Deck, players: list[Player], dealer: Dealer):
     """
