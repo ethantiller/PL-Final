@@ -90,8 +90,13 @@ def determine_winner(player_hand: list[Card], dealer_hand: list[Card]):
 def get_valid_actions(player_hand: list[Card], dealer_hand: list[Card], bet: int):
   """
   Get the valid actions for the player based on their hand and the dealer's hand.
+  - Returns a list of valid actions: 'hit', 'stand', and optionally 'double' if the player can double down.
   """
   actions = ['hit', 'stand']
   if can_double_down(player_hand):
     actions.append('double')
   return actions
+
+class BlackjackRules:
+  BLACKJACK_PAYOUT = 2.5
+  DEALER_HITS_SOFT_17 = True
