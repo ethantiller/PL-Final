@@ -137,4 +137,45 @@ async def main():
     await server_task
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    print("Welcome to Blackjack!")
+    print("1. Play in terminal (local)")
+    print("2. Join a game (client)")
+    print("3. Host a game (server)")
+    choice = input("Select an option (1/2/3): ").strip()
+
+    if choice == "1":
+        # Local single-player game
+        name = input("Enter your name: ").strip()
+        if not name:
+            name = "Player1"
+        from game_engine import GameEngine, TerminalGameIO
+        import asyncio
+        async def local_main():
+            game_io = TerminalGameIO()
+            engine = GameEngine(game_io=game_io)
+            await engine.start_game([name])
+        asyncio.run(local_main())
+
+    elif choice == "2":
+        # Join a game as client
+        # Dynamically import client.py and run its main
+        import importlib.util
+        import sys
+        import os
+        client_path = os.path.join(os.path.dirname(__file__), "server", "client.py")
+        spec = importlib.util.spec_from_file_location("client", client_path)
+        if spec is None or spec.loader is None:
+            print("Could not load client module.")
+            sys.exit(1)
+        client = importlib.util.module_from_spec(spec)
+        sys.modules["client"] = client
+        spec.loader.exec_module(client)
+        import asyncio
+        asyncio.run(client.main())
+
+    elif choice == "3":
+        # Host a game (server)
+        import asyncio
+        asyncio.run(main())
+    else:
+        print("Invalid selection. Exiting.")

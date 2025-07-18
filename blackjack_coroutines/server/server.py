@@ -4,46 +4,58 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from game_engine import GameEngine, GameIO
 
+# Global variables for managing connections
+connected_players = []  # List of (name, writer, reader)
+player_names = []
+player_writers = []
+player_readers = []
+player_connections = {}  # name -> (reader, writer)
+accepting_players = True
+
 class NetworkGameIO(GameIO):
     """Network-based game I/O handler for multiplayer blackjack."""
     
-    def __init__(self, player_writers, player_names):
+    def __init__(self, player_connections, player_names, host_name):
         """
         Initialize NetworkGameIO with player connections.
         Args:
-            player_writers: List of network writers for connected players
+            player_connections: Dict of player name to (reader, writer)
             player_names: List of player names
+            host_name: Name of the host (for terminal input)
         """
-        self.player_writers = player_writers
+        self.player_connections = player_connections
         self.player_names = player_names
+        self.host_name = host_name
     
-    async def input(self, prompt: str) -> str:
-        """Get input from the host player (simulated for now)."""
-        print(f"[SERVER PROMPT] {prompt}")
-        return await asyncio.to_thread(input, f"[SERVER SIMULATED INPUT] {prompt}")
+    async def input(self, prompt: str, player_name: str = None) -> str:
+        """Get input from the correct player (host or client)."""
+        if player_name is None:
+            player_name = ""
+        if player_name == self.host_name or player_name not in self.player_connections:
+            print(f"[SERVER PROMPT] {prompt}")
+            return await asyncio.to_thread(input, f"[SERVER SIMULATED INPUT] {prompt}")
+        else:
+            # Send prompt to the correct client
+            reader, writer = self.player_connections[player_name]
+            try:
+                writer.write(("__PROMPT__" + prompt + '\n').encode())
+                await writer.drain()
+                response = await reader.readline()
+                return response.decode().strip()
+            except Exception as e:
+                print(f"Error getting input from {player_name}: {e}")
+                return ""
     
     def output(self, message: str):
         """Send output message to all connected players."""
         print(f"[SERVER BROADCAST] {message}")
-        for writer in self.player_writers:
+        for name, (reader, writer) in self.player_connections.items():
             try:
                 writer.write((message + '\n').encode())
             except Exception:
                 pass
 
-# Global variables for managing connections
-connected_players = []
-player_names = []
-player_writers = []
-accepting_players = True
-
 async def handle_client(reader, writer):
-    """
-    Handle incoming client connections for multiplayer blackjack.
-    Args:
-        reader: AsyncIO stream reader for client
-        writer: AsyncIO stream writer for client
-    """
     global accepting_players
     addr = writer.get_extra_info('peername')
     print(f"Connection from {addr}")
@@ -63,7 +75,9 @@ async def handle_client(reader, writer):
     # Add player to game
     player_names.append(name)
     player_writers.append(writer)
-    connected_players.append((name, writer))
+    player_readers.append(reader)
+    connected_players.append((name, writer, reader))
+    player_connections[name] = (reader, writer)
     print(f"Player '{name}' joined from {addr}")
 
     # Notify all players
@@ -77,57 +91,37 @@ async def handle_client(reader, writer):
             await asyncio.sleep(1)
     except asyncio.CancelledError:
         pass
-    
-    print(f"Closing connection to {addr}")
-    writer.close()
-    await writer.wait_closed()
+    # Do not close the connection here; keep it open for the game
+    # print(f"Closing connection to {addr}")
+    # writer.close()
+    # await writer.wait_closed()
 
 async def wait_for_players():
-    """
-    Wait for players to join the game and for host to start.
-    Returns:
-        list[str]: List of player names ready to play
-    """
     print("Waiting for players to join...")
+    host_name = str(input("Type in your name to start hosting the game: "))
+    player_names.append(host_name)
     print("Type 'start' to begin the game.")
-    
     while True:
         print(f"Connected players: {player_names}")
         cmd = (await asyncio.to_thread(input, "[HOST] > ")).strip().lower()
-        
         if cmd == 'start' and player_names:
             print("Starting the game!")
-            return list(player_names)
+            return list(player_names), host_name
         elif cmd == 'start':
             print("At least one player must join before starting.")
-        
         await asyncio.sleep(0.5)
 
 async def main():
-    """
-    Main function to start the multiplayer blackjack server.
-    Sets up networking, waits for players, and starts the game.
-    """
     global accepting_players
-    
-    # Start the server
     server = await asyncio.start_server(handle_client, '0.0.0.0', 5555)
     addr = server.sockets[0].getsockname()
     print(f"Serving on {addr}")
-  
-    # Start accepting clients in the background
     server_task = asyncio.create_task(server.serve_forever())
-
-    # Wait for players to join and host to start
-    player_names_list = await wait_for_players()
-
-    # Stop accepting new players
+    player_names_list, host_name = await wait_for_players()
     accepting_players = False
     server.close()
     await server.wait_closed()
-
-    # Start the game engine in server mode
-    game_io = NetworkGameIO(player_writers, player_names_list)
+    game_io = NetworkGameIO(player_connections, player_names_list, host_name)
     engine = GameEngine(game_io=game_io)
     await engine.start_game(player_names_list)
 
