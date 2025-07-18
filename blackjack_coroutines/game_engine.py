@@ -1,6 +1,11 @@
+import asyncio
 from player import Player, Dealer
 from blackjack_rules import *
 from card import Deck
+
+async def async_input(prompt: str) -> str:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, input, prompt)
 
 def check_natural_blackjacks(players: list[Player], dealer: Dealer):
     """
@@ -28,7 +33,7 @@ def check_natural_blackjacks(players: list[Player], dealer: Dealer):
     if dealer_has_blackjack:
         print("Dealer has a natural blackjack!")
 
-def initial_deal(deck: Deck, players: list[Player], dealer: Dealer):
+async def initial_deal(deck: Deck, players: list[Player], dealer: Dealer):
     """
     Deal two cards to each player and the dealer.
     - Players receive two cards each.
@@ -37,13 +42,13 @@ def initial_deal(deck: Deck, players: list[Player], dealer: Dealer):
     for player in players:
         for _ in range(2):
             card = deck.deal_card()
-            player.add_card(card)
+            await player.add_card(card)
     
     # Dealer gets one card face up
-    dealer.add_card(deck.deal_card())
+    await dealer.add_card(deck.deal_card())
     
     # Dealer gets one card face down (not shown to players)
-    dealer.add_hidden_card(deck.deal_card())
+    await dealer.add_hidden_card(deck.deal_card())
 
 def create_players(player_names: list[str]):
     """
@@ -68,12 +73,12 @@ def create_players(player_names: list[str]):
     print(f"Players created: {[player.name for player in players]}")
     return players
 
-def collect_bets(players: list[Player]):
+async def collect_bets(players: list[Player]):
     """Collect bets from all players before dealing cards."""
     for player in players:
         while True:
             try:
-                bet_amount = int(input(f"{player.name}, place your bet (1-{player.chips}): "))
+                bet_amount = int(await async_input(f"{player.name}, place your bet (1-{player.chips}): "))
                 if player.place_bet(bet_amount):
                     break
             except ValueError:
@@ -104,14 +109,14 @@ def display_game_state(players: list[Player], dealer: Dealer, hide_dealer_card=F
 #         return None
 #     return players[0]
 
-def get_player_action(player: Player, valid_actions: list[str]):
+async def get_player_action(player: Player, valid_actions: list[str]):
     """
     Get the player's action based on valid actions.
     - Valid actions include 'hit', 'stand', or 'double' if applicable.
     - Returns the player's chosen action.
     """
     while True:
-        action = input(f"{player.name}, choose your action ({', '.join(valid_actions)}): ").strip().lower()
+        action = (await async_input(f"{player.name}, choose your action ({', '.join(valid_actions)}): ")).strip().lower()
         if action in valid_actions:
             return action
         else:
@@ -119,17 +124,17 @@ def get_player_action(player: Player, valid_actions: list[str]):
             
             
             
-def player_turn(player: Player, dealer: Dealer, deck: Deck):
+async def player_turn(player: Player, dealer: Dealer, deck: Deck):
     """
     Handle the player's turn by allowing them to hit, stand, or double down.
     - Continues until the player stands or goes bust.
     """
     valid_actions = get_valid_actions(player.hand, dealer.hand)
     while not player.mustStand:
-        action = get_player_action(player, valid_actions)
+        action = await get_player_action(player, valid_actions)
         
         if action == 'hit':
-            player.handle_hit(deck)
+            await player.handle_hit(deck)
             if is_bust(player.hand):
                 print(f"{player.name} is bust! They lose this round.")
                 player.mustStand = True
@@ -137,7 +142,7 @@ def player_turn(player: Player, dealer: Dealer, deck: Deck):
             player.handle_stand()
             break
         elif action == 'double' and 'double' in valid_actions:
-            player.handle_double_down(deck)
+            await player.handle_double_down(deck)
             if is_bust(player.hand):
                 print(f"{player.name} is bust after doubling down! They lose this round.")
                 player.mustStand = True
@@ -153,13 +158,13 @@ def player_turn(player: Player, dealer: Dealer, deck: Deck):
 #         return None  # All players have acted
 #     return players[next_index]
                 
-def dealer_turn(dealer: Dealer, deck: Deck):
+async def dealer_turn(dealer: Dealer, deck: Deck):
     """
     Handle the dealer's turn based on standard Blackjack rules.
     - Dealer hits until their hand value is 17 or higher.
     """
     while dealer.should_hit():
-        dealer.handle_hit(deck)
+        await dealer.handle_hit(deck)
         print(f"Dealer hits: {dealer.show_hand()}")
     print(f"Dealer stands with hand: {dealer.show_hand()}")
     
@@ -203,15 +208,15 @@ class GameEngine:
         self.deck = Deck()
         self.current_round = 0
         
-    def play_round(self):
+    async def play_round(self):
         """
         Plays a single round of Blackjack.
         """
         # Betting phase - each player places their bet
-        collect_bets(self.players)
+        await collect_bets(self.players)
         
         # Deal initial cards to players and dealer
-        initial_deal(self.deck, self.players, self.dealer)
+        await initial_deal(self.deck, self.players, self.dealer)
         print("Initial cards dealt.")
         
         # Display initial game state
@@ -225,16 +230,16 @@ class GameEngine:
         print(f"Round {self.current_round} begins!")
         
         for player in self.players:
-            player_turn(player, self.dealer, self.deck)
+            await player_turn(player, self.dealer, self.deck)
 
-        dealer_turn(self.dealer, self.deck) # ERROR HERE
+        await dealer_turn(self.dealer, self.deck)
         payout_winner(self.players, self.dealer)
         
         # If any player has no chips left, add 100 chips to keep them in the game
         for player in self.players:
             player.zero_chips()
 
-    def start_game(self, player_names: list[str]):
+    async def start_game(self, player_names: list[str]):
         print("Starting the Blackjack game...")
         
         if not player_names:
@@ -253,10 +258,10 @@ class GameEngine:
                 return
             
             # Play a round
-            self.play_round()
+            await self.play_round()
             
             # Ask if players want to continue
-            continue_game = input("Do you want to play another round? (yes/no): ").strip().lower()
+            continue_game = (await async_input("Do you want to play another round? (yes/no): ")).strip().lower()
             if continue_game != 'yes':
                 print("Thanks for playing! Exiting game.")
                 break

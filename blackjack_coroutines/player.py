@@ -1,6 +1,6 @@
 from card import Card, Deck
 from blackjack_rules import calculate_hand_value
-import time
+import asyncio
 
 class Player:
     def __init__(self, name, chips=1000):
@@ -36,7 +36,7 @@ class Player:
             print(f"{self.name} bets {amount}. Remaining chips: {self.chips}")
             return True
         
-    def add_card(self, card):
+    async def add_card(self, card):
         """
         Add a card to the player's hand.
         Args:
@@ -45,9 +45,7 @@ class Player:
             None
         """
         self.hand.append(card)
-        
-        # Simulate a delay for realism
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         print(f"{self.name} receives card: {card}. Current hand: {self.show_hand()}, value: {calculate_hand_value(self.hand)}")
         
     def show_hand(self, hide_first=False):
@@ -74,13 +72,13 @@ class Player:
         self.current_bet = 0
         print(f"{self.name}'s hand has been reset.")
         
-    def handle_hit(self, deck: Deck):
+    async def handle_hit(self, deck: Deck):
         """
         Handle the player's action to hit (draw a card).
         """
         card = deck.deal_card()
         if card:
-            self.add_card(card)
+            await self.add_card(card)
         else:
             print("No more cards to deal.")
     
@@ -90,7 +88,7 @@ class Player:
         """
         print(f"{self.name} stands with hand value: {calculate_hand_value(self.hand)}")
     
-    def handle_double_down(self, deck: Deck):
+    async def handle_double_down(self, deck: Deck):
         """
         Handle the player's action to double down.
         - Doubles the bet and takes exactly one more card.
@@ -101,7 +99,7 @@ class Player:
             print(f"{self.name} doubles down! New bet: {self.current_bet}")
             card = deck.deal_card()
             if card:
-                self.add_card(card)
+                await self.add_card(card)
                 self.mustStand = True
                 print(f"{self.name} receives one card and must stand.")
             else:
@@ -131,11 +129,9 @@ class Dealer(Player):
         """
         return calculate_hand_value(self.hand) <= 17
     
-    def add_hidden_card(self, card):
+    async def add_hidden_card(self, card):
         self.hand.append(card)
-        
-        # Simulate a delay for realism
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         print("Dealer receives a hidden card.")
     
     def show_hidden_card(self):
