@@ -1,7 +1,8 @@
 import asyncio
-from game_engine import GameEngine
+from game_engine import GameEngine, create_players, initial_deal, dealer_turn, payout_winner, reset_for_new_round
 from network import AsyncServer, AsyncClient
 import json
+from blackjack_rules import is_bust
 
 async def async_input(prompt: str) -> str:
     loop = asyncio.get_event_loop()
@@ -100,7 +101,7 @@ async def start_multiplayer_game(host_name, server):
             action_input_strategy[name] = lambda prompt, n=name: remote_action_input(n, prompt)
     # Start game loop
     engine.deck.shuffle()
-    engine.players = engine.create_players(player_names)
+    engine.players = create_players(player_names)
     while True:
         # Betting phase
         await broadcast_state(server, engine, 'betting')
@@ -109,11 +110,11 @@ async def start_multiplayer_game(host_name, server):
             player.place_bet(int(bet))
             await broadcast_state(server, engine, 'betting', current_player=player.name)
         # Dealing phase
-        await engine.deck.shuffle()
-        await engine.dealer.reset_hand()
+        engine.deck.shuffle()
+        engine.dealer.reset_hand()
         for p in engine.players:
-            await p.reset_hand()
-        await engine.initial_deal(engine.deck, engine.players, engine.dealer)
+            p.reset_hand()
+        await initial_deal(engine.deck, engine.players, engine.dealer)
         await broadcast_state(server, engine, 'dealing')
         # Player actions
         for player in engine.players:
@@ -124,22 +125,22 @@ async def start_multiplayer_game(host_name, server):
                 action = await action_input_strategy[player.name](prompt)
                 if action == 'hit':
                     await player.handle_hit(engine.deck)
-                    if player.is_bust():
+                    if is_bust(player.hand):
                         player.mustStand = True
                 elif action == 'stand':
                     player.handle_stand()
                     break
         # Dealer turn
-        await engine.dealer_turn(engine.dealer, engine.deck)
+        await dealer_turn(engine.dealer, engine.deck)
         await broadcast_state(server, engine, 'dealer')
         # Payout/results
-        engine.payout_winner(engine.players, engine.dealer)
+        payout_winner(engine.players, engine.dealer)
         await broadcast_state(server, engine, 'results')
         # Ask to continue
         continue_game = await async_input("Do you want to play another round? (yes/no): ")
         if continue_game.strip().lower() != 'yes':
             break
-        engine.reset_for_new_round(engine.players, engine.dealer)
+        reset_for_new_round(engine.players, engine.dealer)
     print("[Host] Multiplayer game finished.")
 
 async def host_game():
