@@ -45,10 +45,14 @@ class AsyncServer:
             print(f"[Server] Error: {e}")
         finally:
             print(f"[Server] Disconnecting {addr}")
+            if writer in self.clients:
+                name = self.clients[writer]
+                del self.clients[writer]
+                print(f"[Server] Player {name} removed from game.")
+            if writer in self.responses:
+                del self.responses[writer]
             writer.close()
             await writer.wait_closed()
-            if writer in self.clients:
-                del self.clients[writer]
 
     async def handle_message(self, msg, reader, writer):
         msg_type = msg.get("type")
@@ -58,10 +62,10 @@ class AsyncServer:
                 await self.send_msg(writer, {"type": "error", "message": "Name required."})
                 return
             self.clients[writer] = name
-            # Broadcast updated player list to all clients
             await self.broadcast_players()
         elif msg_type in ("bet_response", "action_response"):
-            self.responses[writer] = msg
+            if writer in self.clients:
+                self.responses[writer] = msg
         else:
             print(f"[Server] Received: {msg}")
 
