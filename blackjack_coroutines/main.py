@@ -31,12 +31,12 @@ if __name__ == "__main__":
         if mode == '1':
             await start_game()
         elif mode == '2':
-            # Run the server
+           
             server_path = os.path.join(os.path.dirname(__file__), 'server', 'server.py')
             print("Starting server...")
             os.system(f'{sys.executable} "{server_path}"')
         elif mode == '3':
-            # Run the client
+       
             client_path = os.path.join(os.path.dirname(__file__), 'server', 'client.py')
             print("Starting client...")
             os.system(f'{sys.executable} "{client_path}"')
@@ -44,5 +44,3 @@ if __name__ == "__main__":
             print("Invalid selection. Exiting.")
     asyncio.run(startup_prompt())
     
-# Dealer needs to not have his cards shown in the deal cards functions
-# When it is dealers turn, it should show the hidden card first
