@@ -3,6 +3,7 @@ from game_engine import GameEngine, create_players, initial_deal, dealer_turn, p
 from network import AsyncServer, AsyncClient
 import json
 from blackjack_rules import is_bust
+import functools
 
 async def async_input(prompt: str) -> str:
     loop = asyncio.get_event_loop()
@@ -78,17 +79,24 @@ async def start_multiplayer_game(host_name, server):
     async def remote_bet_input(player_name):
         writer = next(w for w, n in server.clients.items() if n == player_name)
         await server.send_msg(writer, {"type": "bet_request"})
+        queue = server.get_response_queue(player_name)
         while True:
-            msg = await server.recv_msg(writer._transport._protocol._stream_reader)
+            msg = await queue.get()
             if msg and msg.get("type") == "bet_response":
                 return msg.get("amount")
     async def remote_action_input(player_name, prompt):
         writer = next(w for w, n in server.clients.items() if n == player_name)
         await server.send_msg(writer, {"type": "action_request", "prompt": prompt})
+        queue = server.get_response_queue(player_name)
         while True:
-            msg = await server.recv_msg(writer._transport._protocol._stream_reader)
+            msg = await queue.get()
             if msg and msg.get("type") == "action_response":
                 return msg.get("action")
+    # Helper to bind player name
+    def make_remote_bet_input(n):
+        return lambda prompt: remote_bet_input(n)
+    def make_remote_action_input(n):
+        return lambda prompt: remote_action_input(n, prompt)
     # Build input strategy dicts
     bet_input_strategy = {}
     action_input_strategy = {}
@@ -97,8 +105,8 @@ async def start_multiplayer_game(host_name, server):
             bet_input_strategy[name] = host_bet_input
             action_input_strategy[name] = host_action_input
         else:
-            bet_input_strategy[name] = lambda prompt, n=name: remote_bet_input(n)
-            action_input_strategy[name] = lambda prompt, n=name: remote_action_input(n, prompt)
+            bet_input_strategy[name] = make_remote_bet_input(name)
+            action_input_strategy[name] = make_remote_action_input(name)
     # Start game loop
     engine.deck.shuffle()
     engine.players = create_players(player_names)
@@ -252,6 +260,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
-# Dealer needs to not have his cards shown in the deal cards functions
-# When it is dealers turn, it should show the hidden card first

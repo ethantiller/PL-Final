@@ -24,7 +24,7 @@ class AsyncServer:
         self.port = port
         self.server = None
         self.clients = {}  # {writer: name}
-        self.responses = {}  # {writer: latest_response}
+        self.queues = {}   # {name: asyncio.Queue}
 
     async def start(self):
         self.server = await asyncio.start_server(self.handle_client, self.host, self.port)
@@ -49,8 +49,8 @@ class AsyncServer:
                 name = self.clients[writer]
                 del self.clients[writer]
                 print(f"[Server] Player {name} removed from game.")
-            if writer in self.responses:
-                del self.responses[writer]
+                if name in self.queues:
+                    del self.queues[name]
             writer.close()
             await writer.wait_closed()
 
@@ -62,10 +62,14 @@ class AsyncServer:
                 await self.send_msg(writer, {"type": "error", "message": "Name required."})
                 return
             self.clients[writer] = name
+            if name not in self.queues:
+                self.queues[name] = asyncio.Queue()
             await self.broadcast_players()
         elif msg_type in ("bet_response", "action_response"):
-            if writer in self.clients:
-                self.responses[writer] = msg
+            # Find player name for this writer
+            name = self.clients.get(writer)
+            if name and name in self.queues:
+                await self.queues[name].put(msg)
         else:
             print(f"[Server] Received: {msg}")
 
@@ -91,6 +95,9 @@ class AsyncServer:
 
     def get_latest_response(self, writer):
         return self.responses.pop(writer, None)
+
+    def get_response_queue(self, name):
+        return self.queues.setdefault(name, asyncio.Queue())
 
 class AsyncClient:
     def __init__(self, host: str = '127.0.0.1', port: int = 8765):
