@@ -43,7 +43,7 @@ def initial_deal(deck: Deck, players: list[Player], dealer: Dealer):
     dealer.add_card(deck.deal_card())
     
     # Dealer gets one card face down (not shown to players)
-    dealer.add_card(deck.deal_card())
+    dealer.add_hidden_card(deck.deal_card())
 
 def create_players(player_names: list[str]):
     """
@@ -94,15 +94,15 @@ def display_game_state(players: list[Player], dealer: Dealer, hide_dealer_card=F
     else:
         print(f"Dealer's hand: {dealer.show_hand()}")
 
-def select_first_player(players: list[Player]):
-    """
-    Select the first player to act based on the order of players.
-    - Returns the first player in the list.
-    """
-    if not players:
-        print("No players available to select.")
-        return None
-    return players[0]
+# def select_first_player(players: list[Player]):
+#     """
+#     Select the first player to act based on the order of players.
+#     - Returns the first player in the list.
+#     """
+#     if not players:
+#         print("No players available to select.")
+#         return None
+#     return players[0]
 
 def get_player_action(player: Player, valid_actions: list[str]):
     """
@@ -116,6 +116,8 @@ def get_player_action(player: Player, valid_actions: list[str]):
             return action
         else:
             print(f"Invalid action. Please choose from {', '.join(valid_actions)}.")
+            
+            
             
 def player_turn(player: Player, dealer: Dealer, deck: Deck):
     """
@@ -134,11 +136,22 @@ def player_turn(player: Player, dealer: Dealer, deck: Deck):
         elif action == 'stand':
             player.handle_stand()
             break
-        elif action == 'double':
+        elif action == 'double' and 'double' in valid_actions:
             player.handle_double_down(deck)
             if is_bust(player.hand):
                 print(f"{player.name} is bust after doubling down! They lose this round.")
                 player.mustStand = True
+            
+# def next_player_turn(players: list[Player], current_index: int):
+#     """
+#     Get the next player in turn order.
+#     - Cycles through the players list starting from the current index.
+#     - Returns the next player or None if all players have acted.
+#     """
+#     next_index = (current_index + 1) % len(players)
+#     if next_index == current_index:
+#         return None  # All players have acted
+#     return players[next_index]
                 
 def dealer_turn(dealer: Dealer, deck: Deck):
     """
@@ -189,21 +202,11 @@ class GameEngine:
         self.dealer = Dealer()
         self.deck = Deck()
         self.current_round = 0
-    
-    def start_game(self, player_names: list[str]):
-        print("Starting the Blackjack game...")
         
-        if not player_names:
-            print("No players provided. Game cannot start.")
-            return
-        
-        # Shuffle the deck
-        self.deck.shuffle()
-        print("Deck shuffled.")
-
-        # Create players using the dedicated method
-        self.players = create_players(player_names)
-        
+    def play_round(self):
+        """
+        Plays a single round of Blackjack.
+        """
         # Betting phase - each player places their bet
         collect_bets(self.players)
         
@@ -220,3 +223,43 @@ class GameEngine:
         # Set up for player turns
         self.current_round += 1
         print(f"Round {self.current_round} begins!")
+        
+        for player in self.players:
+            player_turn(player, self.dealer, self.deck)
+
+        dealer_turn(self.dealer, self.deck) # ERROR HERE
+        payout_winner(self.players, self.dealer)
+        
+        # If any player has no chips left, add 100 chips to keep them in the game
+        for player in self.players:
+            player.zero_chips()
+
+    def start_game(self, player_names: list[str]):
+        print("Starting the Blackjack game...")
+        
+        if not player_names:
+            print("No players provided. Game cannot start.")
+            return
+        
+        # Shuffle the deck
+        self.deck.shuffle()
+        print("Deck shuffled.")
+
+        # Create players using the dedicated method
+        self.players = create_players(player_names)
+        while True:
+            if not self.players:
+                print("No players available. Exiting game.")
+                return
+            
+            # Play a round
+            self.play_round()
+            
+            # Ask if players want to continue
+            continue_game = input("Do you want to play another round? (yes/no): ").strip().lower()
+            if continue_game != 'yes':
+                print("Thanks for playing! Exiting game.")
+                break
+            
+            # Reset for the next round
+            reset_for_new_round(self.players, self.dealer)

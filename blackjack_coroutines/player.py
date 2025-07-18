@@ -48,9 +48,7 @@ class Player:
         
         # Simulate a delay for realism
         time.sleep(0.5)
-        
-        print(f"{self.name} receives {card}. Current hand: {calculate_hand_value(self.hand)}")
-        
+        print(f"{self.name} receives card: {card}. Current hand: {self.show_hand()}, value: {calculate_hand_value(self.hand)}")
         
     def show_hand(self, hide_first=False):
         """
@@ -110,6 +108,14 @@ class Player:
                 print("No more cards to deal.")
         else:
             print(f"{self.name} doesn't have enough chips to double down.")
+            
+    def zero_chips(self):
+        """
+        If the player has no chips left, it will add 100 chips to keep them in the game.
+        """
+        if self.chips == 0:
+            self.chips += 100
+            print(f"{self.name} is out of chips! Adding 100 chips to keep playing.")
 
 class Dealer(Player):
 
@@ -123,7 +129,14 @@ class Dealer(Player):
         Returns:
             bool: True if the dealer should hit, False otherwise.
         """
-        return self.calculate_hand_value() < 17
+        return calculate_hand_value(self.hand) <= 17
+    
+    def add_hidden_card(self, card):
+        self.hand.append(card)
+        
+        # Simulate a delay for realism
+        time.sleep(0.5)
+        print("Dealer receives a hidden card.")
     
     def show_hidden_card(self):
         """

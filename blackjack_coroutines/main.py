@@ -18,3 +18,5 @@ def start_game():
 if __name__ == "__main__":
     start_game()
     
+# Dealer needs to not have his cards shown in the deal cards functions
+# When it is dealers turn, it should show the hidden card first

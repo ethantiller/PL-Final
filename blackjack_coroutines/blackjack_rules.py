@@ -1,5 +1,6 @@
 from card import Card
 
+
 def calculate_hand_value(cards: list[Card]):
     """
     Calculate the total value of a hand of cards.
