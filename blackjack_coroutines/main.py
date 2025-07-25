@@ -196,6 +196,14 @@ async def start_multiplayer_game(host_name, server):
     """Start the multiplayer game with the given host and server."""
     player_names = [host_name] + list(server.clients.values())
     print(f"[Host] Starting multiplayer game with players: {player_names}")
+    
+    # Send start message to all clients to transition them from lobby to game
+    for client_writer in list(server.clients.keys()):
+        try:
+            await server.send_message(client_writer, {"type": "start"})
+        except Exception as error:
+            print(f"[Server] Failed to send start message: {error}")
+            
     game_engine = GameEngine()
 
     # Set up input strategies
@@ -266,12 +274,18 @@ async def handle_lobby_messages(client, player_name):
         if message is None:
             print("[Client] Disconnected from server.")
             break
+        
         message_type = message.get("type")
         if message_type == "join_ack":
             players_in_lobby = message.get("players", [])
             print(f"[Lobby] Current players: {players_in_lobby}")
         elif message_type == "start":
             print("[Client] Game is starting!")
+            return  # Exit lobby phase and transition to game phase
+        elif message_type == "state":
+            # If we receive state messages in the lobby, the server might have skipped sending 'start'
+            # Let's consider this as an implicit game start
+            print("[Client] Game is starting! (Implicitly detected from state message)")
             return
         else:
             print(f"[Client] Unexpected message in lobby: {message}")
