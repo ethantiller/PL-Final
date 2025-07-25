@@ -1,4 +1,4 @@
-from card import Card, Deck
+from card import Deck
 from blackjack_rules import calculate_hand_value
 import asyncio
 
