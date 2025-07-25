@@ -37,7 +37,7 @@ async def networked_action_input(server, player_name, prompt):
         if message and message.get("type") == "action_response":
             return message.get("action")
 
-def serialize_game_state(game_engine, game_phase, current_player_name=None):
+def serialize_game_state(game_engine, game_phase, current_player=None):
     """Serialize the game state for broadcasting to clients."""
     # Determine if dealer cards should be hidden (only in certain phases)
     hide_dealer_cards = game_phase in ['betting', 'player_action']
@@ -63,12 +63,12 @@ def serialize_game_state(game_engine, game_phase, current_player_name=None):
         'dealer': {
             'hand': dealer_hand_representation
         },
-        'current_player': current_player_name,
+        'current_player': current_player,
         'round': game_engine.current_round
     }
 
-async def broadcast_state(server, game_engine, game_phase, current_player_name=None):
-    serialized_state = serialize_game_state(game_engine, game_phase, current_player_name)
+async def broadcast_state(server, game_engine, game_phase, current_player=None):
+    serialized_state = serialize_game_state(game_engine, game_phase, current_player)
     for client_writer in list(server.clients.keys()):
         try:
             await server.send_message(client_writer, serialized_state)
