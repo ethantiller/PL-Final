@@ -181,13 +181,20 @@ def payout_winner(players: list[Player], dealer: Dealer):
     results = determine_winners([player.hand for player in players], players, dealer.hand)
     
     for player, result in zip(players, results):
+        # Calculate payout based on result
         payout = calculate_payout(player.current_bet, result)
+        
+        # Debug - print detailed payout info
+        print(f"DEBUG: {player.name} bet {player.current_bet}, result: {result}, payout: {payout}")
+        
+        # Add payout to player chips
         player.chips += payout
         
+        # Print appropriate message based on result
         if result == 'win':
             print(f"{player.name} wins! Receives {payout} chips.")
         elif result == 'blackjack':
-            print(f"{player.name} has blackjack! Receives {payout} chips.")
+            print(f"{player.name} has blackjack! Receives {payout} chips (2.5x bet).")
         elif result == 'push':
             print(f"{player.name} pushes. Receives {payout} chips back.")
         elif result == 'lose':

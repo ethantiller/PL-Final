@@ -41,6 +41,16 @@ async def networked_action_input(server, player_name, prompt):
 
 def serialize_game_state(engine, phase, current_player=None):
     """Serialize the game state for broadcasting to clients."""
+    # Determine if dealer cards should be hidden (only in certain phases)
+    hide_dealer_cards = phase in ['betting', 'player_action']
+    
+    # Special handling for dealing phase - show at least one card
+    dealer_hand = ""
+    if phase == 'dealing' and len(engine.dealer.hand) >= 1:
+        dealer_hand = f"{engine.dealer.hand[0]} | [Hidden]" if len(engine.dealer.hand) > 1 else str(engine.dealer.hand[0])
+    else:
+        dealer_hand = engine.dealer.show_hand(hide_first=hide_dealer_cards)
+        
     return {
         'type': 'state',
         'phase': phase,
@@ -53,7 +63,7 @@ def serialize_game_state(engine, phase, current_player=None):
             } for p in engine.players
         ],
         'dealer': {
-            'hand': engine.dealer.show_hand(hide_first=(phase in ['betting', 'dealing', 'player_action']))
+            'hand': dealer_hand
         },
         'current_player': current_player,
         'round': engine.current_round
@@ -109,19 +119,41 @@ async def start_multiplayer_game(host_name, server):
             action_input_strategy[name] = make_remote_action_input(name)
     # Start game loop
     engine.deck.shuffle()
+    engine.current_round = 0  # Initialize round counter
     engine.players = create_players(player_names)
     while True:
+        # Increment round number at the start of each round
+        engine.current_round += 1
+        print(f"\nStarting round {engine.current_round}")
+        
         # Betting phase
         await broadcast_state(server, engine, 'betting')
         for player in engine.players:
-            bet = await bet_input_strategy[player.name](f"{player.name}, place your bet (1-{player.chips}): ")
-            player.place_bet(int(bet))
+            # Check if player is out of chips and give them some
+            if player.chips == 0:
+                player.chips += 100
+                print(f"{player.name} is out of chips! Adding 100 chips to keep playing.")
+                
+            while True:
+                bet = await bet_input_strategy[player.name](f"{player.name}, place your bet (1-{player.chips}): ")
+                try:
+                    bet_amount = int(bet)
+                    if bet_amount <= 0:
+                        print(f"{player.name} cannot bet {bet_amount}. Bet must be positive.")
+                        continue
+                    if bet_amount > player.chips:
+                        print(f"{player.name} does not have enough chips to bet {bet_amount}.")
+                        continue
+                    player.chips -= bet_amount
+                    player.current_bet = bet_amount
+                    print(f"{player.name} bets {bet_amount}. Remaining chips: {player.chips}")
+                    break
+                except ValueError:
+                    print(f"Invalid bet from {player.name}. Please enter a number.")
+            
             await broadcast_state(server, engine, 'betting', current_player=player.name)
         # Dealing phase
         engine.deck.shuffle()
-        engine.dealer.reset_hand()
-        for p in engine.players:
-            p.reset_hand()
         await initial_deal(engine.deck, engine.players, engine.dealer)
         await broadcast_state(server, engine, 'dealing')
         # Player actions
@@ -143,12 +175,24 @@ async def start_multiplayer_game(host_name, server):
         await broadcast_state(server, engine, 'dealer')
         # Payout/results
         payout_winner(engine.players, engine.dealer)
+        
+        # Handle zero chips
+        for player in engine.players:
+            if player.chips == 0:
+                player.chips += 100
+                print(f"{player.name} is out of chips! Adding 100 chips to keep playing.")
+                
         await broadcast_state(server, engine, 'results')
+        
         # Ask to continue
         continue_game = await async_input("Do you want to play another round? (yes/no): ")
         if continue_game.strip().lower() != 'yes':
             break
-        reset_for_new_round(engine.players, engine.dealer)
+            
+        # Reset for new round - moved here to ensure it happens at the right time
+        engine.dealer.reset_hand()
+        for p in engine.players:
+            p.reset_hand()
     print("[Host] Multiplayer game finished.")
 
 async def host_game():
@@ -207,13 +251,31 @@ async def join_game():
             elif msg_type == "start":
                 print("[Client] Game is starting!")
             elif msg_type == "state":
-                print(f"[Game State] Phase: {msg.get('phase')} | Round: {msg.get('round')}")
+                phase = msg.get('phase')
+                round_num = msg.get('round')
+                print(f"\n[Game State] Phase: {phase} | Round: {round_num}")
+                
+                # Display players' information
                 for p in msg.get('players', []):
-                    print(f"{p['name']} - Chips: {p['chips']} | Hand: {p['hand']} | Bet: {p['current_bet']}")
+                    player_name = p['name']
+                    chips = p['chips']
+                    hand = p['hand']
+                    bet = p['current_bet']
+                    
+                    # Format for better readability
+                    if player_name == name:
+                        print(f"YOU ({player_name}) - Chips: {chips} | Hand: {hand} | Bet: {bet}")
+                    else:
+                        print(f"{player_name} - Chips: {chips} | Hand: {hand} | Bet: {bet}")
+                
+                # Display dealer's hand
                 dealer = msg.get('dealer', {})
-                print(f"Dealer's hand: {dealer.get('hand')}")
+                dealer_hand = dealer.get('hand', '')
+                print(f"Dealer's hand: {dealer_hand}")
+                
+                # Highlight when it's the player's turn
                 if msg.get('current_player') == name:
-                    print("It's your turn!")
+                    print("\n*** IT'S YOUR TURN! ***")
             elif msg_type == "bet_request":
                 while True:
                     try:
