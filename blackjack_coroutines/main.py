@@ -220,8 +220,12 @@ async def start_multiplayer_game(host_name, server):
 
         # Ask to continue
         continue_game = await async_input("Do you want to play another round? (yes/no): ")
-        if continue_game.strip().lower() != 'yes':
+        if continue_game.strip().lower() == 'yes':
+            continue
+        elif continue_game.strip().lower() == 'no':
             break
+        else:
+            print("Invalid input, type 'yes' or 'no'.")
 
         # Reset for new round
         game_engine.dealer.reset_hand()
