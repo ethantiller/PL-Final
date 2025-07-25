@@ -292,8 +292,8 @@ async def join_game():
                 print(f"[Error] {msg.get('message')}")
             else:
                 print(f"[Client] Received: {msg}")
-    except Exception as e:
-        print(f"[Client] Error: {e}")
+    except Exception as error:
+        print(f"[Client] Error: {error}")
 
 async def start_local_game():
     """
