@@ -16,9 +16,9 @@ async def networked_bet_input(server, player_name):
             break
     if client_writer is None:
         raise RuntimeError(f"No connection for player {player_name}")
-    await server.send_msg(client_writer, {"type": "bet_request"})
+    await server.send_message(client_writer, {"type": "bet_request"})
     while True:
-        message = await server.recv_msg(client_writer._transport._protocol._stream_reader)
+        message = await server.recv_message(client_writer._transport._protocol._stream_reader)
         if message and message.get("type") == "bet_response":
             return message.get("amount")
 
@@ -31,9 +31,9 @@ async def networked_action_input(server, player_name, prompt):
             break
     if client_writer is None:
         raise RuntimeError(f"No connection for player {player_name}")
-    await server.send_msg(client_writer, {"type": "action_request", "prompt": prompt})
+    await server.send_message(client_writer, {"type": "action_request", "prompt": prompt})
     while True:
-        message = await server.recv_msg(client_writer._transport._protocol._stream_reader)
+        message = await server.recv_message(client_writer._transport._protocol._stream_reader)
         if message and message.get("type") == "action_response":
             return message.get("action")
 
@@ -71,14 +71,14 @@ async def broadcast_state(server, game_engine, game_phase, current_player_name=N
     serialized_state = serialize_game_state(game_engine, game_phase, current_player_name)
     for client_writer in list(server.clients.keys()):
         try:
-            await server.send_msg(client_writer, serialized_state)
+            await server.send_message(client_writer, serialized_state)
         except Exception as error:
             print(f"[Server] Failed to send state: {error}")
 
 async def get_remote_bet_input(server, player_name):
     """Get bet input from a remote player."""
     client_writer = next(writer for writer, connected_player_name in server.clients.items() if connected_player_name == player_name)
-    await server.send_msg(client_writer, {"type": "bet_request"})
+    await server.send_message(client_writer, {"type": "bet_request"})
     response_queue = server.get_response_queue(player_name)
     while True:
         message = await response_queue.get()
@@ -88,7 +88,7 @@ async def get_remote_bet_input(server, player_name):
 async def get_remote_action_input(server, player_name, action_prompt):
     """Get action input from a remote player."""
     client_writer = next(writer for writer, connected_player_name in server.clients.items() if connected_player_name == player_name)
-    await server.send_msg(client_writer, {"type": "action_request", "prompt": action_prompt})
+    await server.send_message(client_writer, {"type": "action_request", "prompt": action_prompt})
     response_queue = server.get_response_queue(player_name)
     while True:
         message = await response_queue.get()
@@ -262,7 +262,7 @@ async def host_game():
 async def handle_lobby_messages(client, player_name):
     """Handle lobby messages from the server."""
     while True:
-        message = await client.recv_msg()
+        message = await client.recv_message()
         if message is None:
             print("[Client] Disconnected from server.")
             break
@@ -279,7 +279,7 @@ async def handle_lobby_messages(client, player_name):
 async def handle_game_state_updates(client, player_name):
     """Handle game state updates and player interactions."""
     while True:
-        message = await client.recv_msg()
+        message = await client.recv_message()
         if message is None:
             print("[Client] Disconnected from server.")
             break
@@ -328,13 +328,13 @@ async def handle_bet_request(client):
             break
         except ValueError:
             print("Please enter a valid number.")
-    await client.send_msg({"type": "bet_response", "amount": bet_amount})
+    await client.send_message({"type": "bet_response", "amount": bet_amount})
 
 async def handle_action_request(client, action_message):
     """Handle an action request from the server."""
     action_prompt = action_message.get("prompt", "Choose your action: ")
     action = await async_input(action_prompt)
-    await client.send_msg({"type": "action_response", "action": action})
+    await client.send_message({"type": "action_response", "action": action})
 
 async def join_game():
     """
@@ -352,7 +352,7 @@ async def join_game():
     client = AsyncClient(server_ip, server_port)
     try:
         await client.connect()
-        await client.send_msg({"type": "join", "name": player_name.strip()})
+        await client.send_message({"type": "join", "name": player_name.strip()})
         print("[Client] Waiting for host to start the game...")
         await handle_lobby_messages(client, player_name)
         await handle_game_state_updates(client, player_name)
