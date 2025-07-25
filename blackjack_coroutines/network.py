@@ -86,6 +86,47 @@ class AsyncServer:
         else:
             print(f"[Server] Received: {message}")
 
+    async def broadcast_players(self):
+        """
+        Broadcast the list of players to all of the clients.
+        """
+        players = list(self.clients.values())
+        message = {"type": "join_ack", "players": players}
+        for writer in list(self.clients.keys()):
+            try:
+                await self.send_message(writer, message)
+            except Exception as error:
+                print(f"[Server] Error sending message to client: {error}")
+                
+    async def send_message(self, writer, message_dict):
+        """
+        Send a JSON message to a client.
+        """
+        data = json.dumps(message_dict) + '\n'
+        writer.write(data.encode())
+        await writer.drain()
+
+    async def recv_message(self, reader):
+        """
+        Receive a JSON message from a client.
+        """
+        line = await reader.readline()
+        if not line:
+            return None
+        return json.loads(line.decode())
+
+    def get_latest_response(self, writer):
+        """
+        Retrieve and remove the latest response for a given writer.
+        """
+        return self.responses.pop(writer, None)
+
+    def get_response_queue(self, name):
+        """
+        Get the response queue for a player by name, creating it if it doesn't exist.
+        """
+        return self.queues.setdefault(name, asyncio.Queue())
+
 
     
 class AsyncClient:
@@ -104,3 +145,24 @@ class AsyncClient:
         """
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
         print(f"[Client] Connected to {self.host}:{self.port}")
+        
+    async def send_message(self, message_dict):
+        """
+        Send a JSON message to the server.
+        """
+        if self.writer is None:
+            raise RuntimeError("Not connected: writer is None")
+        data = json.dumps(message_dict) + '\n'
+        self.writer.write(data.encode())
+        await self.writer.drain()
+
+    async def recv_message(self):
+        """
+        Receive a JSON message from the server.
+        """
+        if self.reader is None:
+            raise RuntimeError("Not connected: reader is None")
+        line = await self.reader.readline()
+        if not line:
+            return None
+        return json.loads(line.decode())

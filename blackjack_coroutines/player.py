@@ -1,4 +1,4 @@
-from card import Card, Deck
+from card import Deck
 from blackjack_rules import calculate_hand_value
 import asyncio
 
@@ -44,6 +44,10 @@ class Player:
         Returns:
             None
         """
+        if card is None:
+            print(f"Warning: Attempted to add None card to {self.name}'s hand! Skipping...")
+            return
+        
         self.hand.append(card)
         await asyncio.sleep(0.5)
         print(f"{self.name} receives card: {card}. Current hand: {self.show_hand()}, value: {calculate_hand_value(self.hand)}")
