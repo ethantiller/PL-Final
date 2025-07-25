@@ -39,6 +39,11 @@ async def initial_deal(deck: Deck, players: list[Player], dealer: Dealer):
     - Players receive two cards each.
     - Dealer receives one card face up and one card face down.
     """
+    # Ensure deck is ready for a new round
+    if len(deck.cards) < (len(players) * 2 + 2):  # Need at least this many cards
+        print("Not enough cards in deck, reshuffling...")
+        deck.reset()
+    
     for player in players:
         for _ in range(2):
             card = deck.deal_card()

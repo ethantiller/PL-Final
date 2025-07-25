@@ -158,7 +158,7 @@ async def play_game_round(game_engine, server, bet_input_strategy, action_input_
         await broadcast_state(server, game_engine, 'betting', current_player=player.name)
 
     # Dealing phase
-    game_engine.deck.shuffle()
+    game_engine.deck.reset()  # Completely reset the deck with fresh cards
     await initial_deal(game_engine.deck, game_engine.players, game_engine.dealer)
     await broadcast_state(server, game_engine, 'dealing')
 

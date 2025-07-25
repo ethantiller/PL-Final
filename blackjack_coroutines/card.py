@@ -25,19 +25,18 @@ class Card:
 class Deck:
     def __init__(self):
         # Create and shuffle deck(s)
+        self.reset()
+    
+    def reset(self):
+        """Reset the deck with a fresh set of cards."""
         self.cards = [Card(suit, rank) for suit in Card.SUITS for rank in Card.RANKS]
+        self.shuffle()
     
     def shuffle(self):
         random.shuffle(self.cards)
 
     def deal_card(self):
         if not self.cards:
-            print("No cards left in the deck!")
-            return None
+            print("Deck is empty, resetting and reshuffling...")
+            self.reset()
         return self.cards.pop()
-    
-    # def cards_remaining(self):
-    #     return len(self.cards)
-    
-    # def needs_shuffle(self):
-    #     return len(self.cards) < 10
