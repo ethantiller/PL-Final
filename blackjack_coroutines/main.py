@@ -182,6 +182,7 @@ async def join_game():
     """
     Client flow: prompt for IP/port and name, connect to server, send name, handle lobby and game state updates.
     """
+    name = await async_input("Enter your name: ")
     host = await async_input("Enter server IP (default 127.0.0.1): ") or "127.0.0.1"
     port_str = await async_input("Enter server port (default 8765): ") or "8765"
     try:
@@ -189,7 +190,6 @@ async def join_game():
     except ValueError:
         print("Invalid port. Exiting.")
         return
-    name = await async_input("Enter your name: ")
     client = AsyncClient(host, port)
     try:
         await client.connect()
