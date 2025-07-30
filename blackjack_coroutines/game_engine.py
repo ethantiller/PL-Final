@@ -1,6 +1,6 @@
 import asyncio
 from player import Player, Dealer
-from blackjack_rules import is_blackjack, is_bust, get_valid_actions, calculate_payout, determine_winners
+from blackjack_rules import *
 from card import Deck
 
 async def async_input(prompt: str) -> str:
@@ -155,17 +155,6 @@ async def player_turn(player: Player, dealer: Dealer, deck: Deck, player_input_s
             if is_bust(player.hand):
                 print(f"{player.name} is bust after doubling down! They lose this round.")
                 player.mustStand = True
-            
-# def next_player_turn(players: list[Player], current_index: int):
-#     """
-#     Get the next player in turn order.
-#     - Cycles through the players list starting from the current index.
-#     - Returns the next player or None if all players have acted.
-#     """
-#     next_index = (current_index + 1) % len(players)
-#     if next_index == current_index:
-#         return None  # All players have acted
-#     return players[next_index]
                 
 async def dealer_turn(dealer: Dealer, deck: Deck):
     """
