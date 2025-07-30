@@ -42,7 +42,6 @@ class AsyncServer:
         print(f"[Server] Listening on {self.host}:{self.port}")
         async with self.server:
             await self.server.serve_forever()
-
     async def handle_client(self, reader, writer):
         """
         Handle a new client connection.
