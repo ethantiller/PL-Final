@@ -1,6 +1,7 @@
 import asyncio
 from game_engine import GameEngine, create_players, initial_deal, dealer_turn, payout_winner, reset_for_new_round
-
+from network import AsyncServer, AsyncClient
+from blackjack_rules import is_bust
 
 async def async_input(prompt: str) -> str:
     loop = asyncio.get_event_loop()
@@ -8,10 +9,10 @@ async def async_input(prompt: str) -> str:
 
 def serialize_game_state(game_engine, game_phase, current_player=None):
     """Serialize the game state for broadcasting to clients."""
-    # Determine if dealer cards should be hidden (only in certain phases)
+    #Determine if dealer cards should be hidden (only in certain phases)
     hide_dealer_cards = game_phase in ['betting', 'player_action']
     
-    # Special handling for dealing phase - show at least one card
+    #Special handling for dealing phase - show at least one card
     dealer_hand_representation = ""
     if game_phase == 'dealing' and len(game_engine.dealer.hand) >= 1:
         dealer_hand_representation = f"{game_engine.dealer.hand[0]} | [Hidden]" if len(game_engine.dealer.hand) > 1 else str(game_engine.dealer.hand[0])
@@ -94,6 +95,152 @@ def setup_input_strategies(host_name, server, player_names):
             action_input_strategy[player_name] = create_remote_action_input_function(server, player_name)
 
     return bet_input_strategy, action_input_strategy
+
+async def play_game_round(game_engine, server, bet_input_strategy, action_input_strategy):
+    """Play a single round of the game."""
+    game_engine.current_round += 1
+    print(f"\nStarting round {game_engine.current_round}")
+
+    # Betting phase
+    await broadcast_state(server, game_engine, 'betting')
+    for player in game_engine.players:
+        if player.chips == 0:
+            player.chips += 100
+            print(f"{player.name} is out of chips! Adding 100 chips to keep playing.")
+
+        while True:
+            bet = await bet_input_strategy[player.name](f"{player.name}, place your bet (1-{player.chips}): ")
+            try:
+                bet_amount = int(bet)
+                if bet_amount <= 0:
+                    print(f"{player.name} cannot bet {bet_amount}. Bet must be positive.")
+                    continue
+                if bet_amount > player.chips:
+                    print(f"{player.name} does not have enough chips to bet {bet_amount}.")
+                    continue
+                player.chips -= bet_amount
+                player.current_bet = bet_amount
+                print(f"{player.name} bets {bet_amount}. Remaining chips: {player.chips}")
+                break
+            except ValueError:
+                print(f"Invalid bet from {player.name}. Please enter a number.")
+
+        await broadcast_state(server, game_engine, 'betting', current_player=player.name)
+
+    # Dealing phase
+    game_engine.deck.reset()  # Completely reset the deck with fresh cards
+    await initial_deal(game_engine.deck, game_engine.players, game_engine.dealer)
+    await broadcast_state(server, game_engine, 'dealing')
+
+    # Player actions
+    for player in game_engine.players:
+        while not player.mustStand:
+            await broadcast_state(server, game_engine, 'player_action', current_player=player.name)
+            valid_actions = ['hit', 'stand']
+            action_prompt = f"{player.name}, choose your action ({', '.join(valid_actions)}): "
+            action = await action_input_strategy[player.name](action_prompt)
+            if action == 'hit':
+                await player.handle_hit(game_engine.deck)
+                if is_bust(player.hand):
+                    player.mustStand = True
+            elif action == 'stand':
+                player.handle_stand()
+                break
+
+    # Dealer turn
+    await dealer_turn(game_engine.dealer, game_engine.deck)
+    await broadcast_state(server, game_engine, 'dealer')
+
+    # Payout/results
+    payout_winner(game_engine.players, game_engine.dealer)
+
+    # Handle zero chips
+    for player in game_engine.players:
+        if player.chips == 0:
+            player.chips += 100
+            print(f"{player.name} is out of chips! Adding 100 chips to keep playing.")
+
+    await broadcast_state(server, game_engine, 'results')
+    
+async def start_multiplayer_game(host_name, server):
+    """Start the multiplayer game with the given host and server."""
+    player_names = [host_name] + list(server.clients.values())
+    print(f"[Host] Starting multiplayer game with players: {player_names}")
+    
+    # Send start message to all clients to transition them from lobby to game
+    for client_writer in list(server.clients.keys()):
+        try:
+            await server.send_message(client_writer, {"type": "start"})
+        except Exception as error:
+            print(f"[Server] Failed to send start message: {error}")
+            
+    game_engine = GameEngine()
+
+    # Set up input strategies
+    bet_input_strategy, action_input_strategy = setup_input_strategies(host_name, server, player_names)
+
+    # Initialize game engines
+    game_engine.deck.shuffle()
+    game_engine.current_round = 0
+    game_engine.players = create_players(player_names)
+
+    # Game loop
+    while True:
+        await play_game_round(game_engine, server, bet_input_strategy, action_input_strategy)
+
+        # Ask to continue
+        continue_game = await async_input("Do you want to play another round? (yes/no): ")
+        if continue_game.strip().lower() == 'yes':
+            continue
+        elif continue_game.strip().lower() == 'no':
+            break
+        else:
+            print("Invalid input, type 'yes' or 'no'.")
+
+        # Reset for new round
+        game_engine.dealer.reset_hand()
+        for player in game_engine.players:
+            player.reset_hand()
+
+    print("[Host] Multiplayer game finished.")
+    
+async def initialize_host_game():
+    """
+    This function initializes the host game function by receiving the host's name and starting the server.
+    """
+    host_name = await async_input("Enter your name (host): ")
+    server = AsyncServer()
+    player_names = [host_name.strip()] 
+    print("[Host] Starting server... Waiting for players to join.")
+
+    #Start server in background
+    server_task = asyncio.create_task(server.start())
+
+    return host_name, server, player_names, server_task
+
+async def host_game():
+    """
+    Host game logic: prompt for name, start server, accept clients, collect names, allow host to type 'start' to begin.
+    """
+    host_name, server, player_names, server_task = await initialize_host_game()
+
+    # Simple lobby loop: print connected players, allow 'start' to begin
+    try:
+        while True:
+            print(f"\nCurrent players: {player_names + list(server.clients.values())}")
+            command = await async_input("Type 'start' to begin or press Enter to refresh: ")
+            if command.strip().lower() == 'start':
+                print("[Host] Starting game...")
+                await start_multiplayer_game(host_name, server)
+                break
+    finally:
+        # If the server exists, close it
+        if server.server is not None:
+            server.server.close()
+            await server.server.wait_closed()
+        
+        # If the server task is running, cancel it
+        server_task.cancel()
 
 def display_game_state(game_state, player_name):
     """Display the current game state to the player."""
