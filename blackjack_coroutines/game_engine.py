@@ -1,6 +1,6 @@
 import asyncio
 from player import Player, Dealer
-from blackjack_rules import *
+from blackjack_rules import is_blackjack, is_bust, get_valid_actions, calculate_payout, determine_winners
 from card import Deck
 
 async def async_input(prompt: str) -> str:
@@ -39,6 +39,11 @@ async def initial_deal(deck: Deck, players: list[Player], dealer: Dealer):
     - Players receive two cards each.
     - Dealer receives one card face up and one card face down.
     """
+    # Ensure deck is ready for a new round
+    if len(deck.cards) < (len(players) * 2 + 2):  # Need at least this many cards
+        print("Not enough cards in deck, reshuffling...")
+        deck.reset()
+    
     for player in players:
         for _ in range(2):
             card = deck.deal_card()
@@ -73,12 +78,15 @@ def create_players(player_names: list[str]):
     print(f"Players created: {[player.name for player in players]}")
     return players
 
-async def collect_bets(players: list[Player]):
-    """Collect bets from all players before dealing cards."""
+async def collect_bets(players: list[Player], player_input_strategy=None):
+    """Collect bets from all players before dealing cards, using the provided input strategy."""
+    if player_input_strategy is None:
+        player_input_strategy = {}
     for player in players:
         while True:
             try:
-                bet_amount = int(await async_input(f"{player.name}, place your bet (1-{player.chips}): "))
+                get_bet = player_input_strategy.get(player.name, async_input)
+                bet_amount = int(await get_bet(f"{player.name}, place your bet (1-{player.chips}): "))
                 if player.place_bet(bet_amount):
                     break
             except ValueError:
@@ -109,14 +117,15 @@ def display_game_state(players: list[Player], dealer: Dealer, hide_dealer_card=F
 #         return None
 #     return players[0]
 
-async def get_player_action(player: Player, valid_actions: list[str]):
+async def get_player_action(player: Player, valid_actions: list[str], player_input_strategy=None):
     """
-    Get the player's action based on valid actions.
-    - Valid actions include 'hit', 'stand', or 'double' if applicable.
-    - Returns the player's chosen action.
+    Get the player's action based on valid actions, using the provided input strategy.
     """
+    if player_input_strategy is None:
+        player_input_strategy = {}
     while True:
-        action = (await async_input(f"{player.name}, choose your action ({', '.join(valid_actions)}): ")).strip().lower()
+        get_action = player_input_strategy.get(player.name, async_input)
+        action = (await get_action(f"{player.name}, choose your action ({', '.join(valid_actions)}): ")).strip().lower()
         if action in valid_actions:
             return action
         else:
@@ -124,14 +133,14 @@ async def get_player_action(player: Player, valid_actions: list[str]):
             
             
             
-async def player_turn(player: Player, dealer: Dealer, deck: Deck):
+async def player_turn(player: Player, dealer: Dealer, deck: Deck, player_input_strategy=None):
     """
     Handle the player's turn by allowing them to hit, stand, or double down.
     - Continues until the player stands or goes bust.
     """
     valid_actions = get_valid_actions(player.hand, dealer.hand)
     while not player.mustStand:
-        action = await get_player_action(player, valid_actions)
+        action = await get_player_action(player, valid_actions, player_input_strategy)
         
         if action == 'hit':
             await player.handle_hit(deck)
@@ -177,13 +186,20 @@ def payout_winner(players: list[Player], dealer: Dealer):
     results = determine_winners([player.hand for player in players], players, dealer.hand)
     
     for player, result in zip(players, results):
+        # Calculate payout based on result
         payout = calculate_payout(player.current_bet, result)
+        
+        # Debug - print detailed payout info
+        print(f"DEBUG: {player.name} bet {player.current_bet}, result: {result}, payout: {payout}")
+        
+        # Add payout to player chips
         player.chips += payout
         
+        # Print appropriate message based on result
         if result == 'win':
             print(f"{player.name} wins! Receives {payout} chips.")
         elif result == 'blackjack':
-            print(f"{player.name} has blackjack! Receives {payout} chips.")
+            print(f"{player.name} has blackjack! Receives {payout} chips (2.5x bet).")
         elif result == 'push':
             print(f"{player.name} pushes. Receives {payout} chips back.")
         elif result == 'lose':
@@ -208,12 +224,12 @@ class GameEngine:
         self.deck = Deck()
         self.current_round = 0
         
-    async def play_round(self):
+    async def play_round(self, player_input_strategy=None):
         """
-        Plays a single round of Blackjack.
+        Plays a single round of Blackjack, using the provided input strategy for player input.
         """
         # Betting phase - each player places their bet
-        await collect_bets(self.players)
+        await collect_bets(self.players, player_input_strategy)
         
         # Deal initial cards to players and dealer
         await initial_deal(self.deck, self.players, self.dealer)
@@ -230,7 +246,7 @@ class GameEngine:
         print(f"Round {self.current_round} begins!")
         
         for player in self.players:
-            await player_turn(player, self.dealer, self.deck)
+            await player_turn(player, self.dealer, self.deck, player_input_strategy)
 
         await dealer_turn(self.dealer, self.deck)
         payout_winner(self.players, self.dealer)
@@ -239,7 +255,7 @@ class GameEngine:
         for player in self.players:
             player.zero_chips()
 
-    async def start_game(self, player_names: list[str]):
+    async def start_game(self, player_names: list[str], player_input_strategy=None):
         print("Starting the Blackjack game...")
         
         if not player_names:
@@ -258,7 +274,7 @@ class GameEngine:
                 return
             
             # Play a round
-            await self.play_round()
+            await self.play_round(player_input_strategy)
             
             # Ask if players want to continue
             continue_game = (await async_input("Do you want to play another round? (yes/no): ")).strip().lower()
