@@ -7,6 +7,36 @@ async def async_input(prompt: str) -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, input, prompt)
 
+async def networked_bet_input(server, player_name):
+    """Send a bet request to the client and wait for response."""
+    client_writer = None
+    for writer, connected_player_name in server.clients.items():
+        if connected_player_name == player_name:
+            client_writer = writer
+            break
+    if client_writer is None:
+        raise RuntimeError(f"No connection for player {player_name}")
+    await server.send_message(client_writer, {"type": "bet_request"})
+    while True:
+        message = await server.recv_message(client_writer._transport._protocol._stream_reader)
+        if message and message.get("type") == "bet_response":
+            return message.get("amount")
+
+async def networked_action_input(server, player_name, prompt):
+    """Send an action request to the client and wait for response."""
+    client_writer = None
+    for writer, connected_player_name in server.clients.items():
+        if connected_player_name == player_name:
+            client_writer = writer
+            break
+    if client_writer is None:
+        raise RuntimeError(f"No connection for player {player_name}")
+    await server.send_message(client_writer, {"type": "action_request", "prompt": prompt})
+    while True:
+        message = await server.recv_message(client_writer._transport._protocol._stream_reader)
+        if message and message.get("type") == "action_response":
+            return message.get("action")
+
 def serialize_game_state(game_engine, game_phase, current_player=None):
     """Serialize the game state for broadcasting to clients."""
     #Determine if dealer cards should be hidden (only in certain phases)
@@ -239,8 +269,50 @@ async def host_game():
             server.server.close()
             await server.server.wait_closed()
         
-        # If the server task is running, cancel it
+        #If the server task is running, cancel it
         server_task.cancel()
+
+async def handle_lobby_messages(client, player_name):
+    """Handle lobby messages from the server."""
+    while True:
+        message = await client.recv_message()
+        if message is None:
+            print("[Client] Disconnected from server.")
+            break
+        
+        message_type = message.get("type")
+        if message_type == "join_ack":
+            players_in_lobby = message.get("players", [])
+            print(f"[Lobby] Current players: {players_in_lobby}")
+        elif message_type == "start":
+            print("[Client] Game is starting!")
+            return  # Exit lobby phase and transition to game phase
+        elif message_type == "state":
+            # If we receive state messages in the lobby, the server might have skipped sending 'start'
+            # Let's consider this as an implicit game start
+            print("[Client] Game is starting! (Implicitly detected from state message)")
+            return
+        else:
+            print(f"[Client] Unexpected message in lobby: {message}")
+
+async def handle_game_state_updates(client, player_name):
+    """Handle game state updates and player interactions."""
+    while True:
+        message = await client.recv_message()
+        if message is None:
+            print("[Client] Disconnected from server.")
+            break
+        message_type = message.get("type")
+        if message_type == "state":
+            display_game_state(message, player_name)
+        elif message_type == "bet_request":
+            await handle_bet_request(client)
+        elif message_type == "action_request":
+            await handle_action_request(client, message)
+        elif message_type == "error":
+            print(f"[Error] {message.get('message')}")
+        else:
+            print(f"[Client] Received unexpected message: {message}")
 
 def display_game_state(game_state, player_name):
     """Display the current game state to the player."""
@@ -248,7 +320,7 @@ def display_game_state(game_state, player_name):
     round_number = game_state.get('round')
     print(f"\n[Game State] Phase: {phase} | Round: {round_number}")
 
-    #Display players' information
+    # Display players' information
     for player in game_state.get('players', []):
         name = player['name']
         chips = player['chips']
@@ -259,13 +331,52 @@ def display_game_state(game_state, player_name):
         else:
             print(f"{name} - Chips: {chips} | Hand: {hand} | Bet: {current_bet}")
 
-    #Display dealer's hand
+    # Display dealer's hand
     dealer_hand = game_state.get('dealer', {}).get('hand', '')
     print(f"Dealer's hand: {dealer_hand}")
 
-    #Highlight when it's the player's turn
+    # Highlight when it's the player's turn
     if game_state.get('current_player') == player_name:
         print("\n*** IT'S YOUR TURN! ***")
+
+async def handle_bet_request(client):
+    """Handle a bet request from the server."""
+    while True:
+        try:
+            bet_amount = int(await async_input("Place your bet: "))
+            break
+        except ValueError:
+            print("Please enter a valid number.")
+    await client.send_message({"type": "bet_response", "amount": bet_amount})
+
+async def handle_action_request(client, action_message):
+    """Handle an action request from the server."""
+    action_prompt = action_message.get("prompt", "Choose your action: ")
+    action = await async_input(action_prompt)
+    await client.send_message({"type": "action_response", "action": action})
+
+async def join_game():
+    """
+    Client flow: prompt for IP/port and name, connect to server, send name, handle lobby and game state updates.
+    """
+    player_name = await async_input("Enter your name: ")
+    server_ip = await async_input("Enter server IP (default 127.0.0.1): ") or "127.0.0.1"
+    port_input = await async_input("Enter server port (default 8765): ") or "8765"
+    try:
+        server_port = int(port_input)
+    except ValueError:
+        print("Invalid port. Exiting.")
+        return
+
+    client = AsyncClient(server_ip, server_port)
+    try:
+        await client.connect()
+        await client.send_message({"type": "join", "name": player_name.strip()})
+        print("[Client] Waiting for host to start the game...")
+        await handle_lobby_messages(client, player_name)
+        await handle_game_state_updates(client, player_name)
+    except Exception as error:
+        print(f"[Client] Error: {error}")
 
 async def start_local_game():
     """
@@ -285,10 +396,10 @@ async def main():
     mode = await async_input("Enter 1, 2, or 3: ")
     if mode == '1':
         await start_local_game()
-    # elif mode == '2':
-    #      await host_game()
-    # elif mode == '3':
-    #      await join_game()
+    elif mode == '2':
+         await host_game()
+    elif mode == '3':
+         await join_game()
     else:
         print("Invalid selection. Exiting.")
 
