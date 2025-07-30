@@ -39,10 +39,10 @@ async def networked_action_input(server, player_name, prompt):
 
 def serialize_game_state(game_engine, game_phase, current_player=None):
     """Serialize the game state for broadcasting to clients."""
-    #Determine if dealer cards should be hidden (only in certain phases)
+    # Determine if dealer cards should be hidden (only in certain phases)
     hide_dealer_cards = game_phase in ['betting', 'player_action']
     
-    #Special handling for dealing phase - show at least one card
+    # Special handling for dealing phase - show at least one card
     dealer_hand_representation = ""
     if game_phase == 'dealing' and len(game_engine.dealer.hand) >= 1:
         dealer_hand_representation = f"{game_engine.dealer.hand[0]} | [Hidden]" if len(game_engine.dealer.hand) > 1 else str(game_engine.dealer.hand[0])
@@ -66,7 +66,7 @@ def serialize_game_state(game_engine, game_phase, current_player=None):
         'current_player': current_player,
         'round': game_engine.current_round
     }
-    
+
 async def broadcast_state(server, game_engine, game_phase, current_player=None):
     serialized_state = serialize_game_state(game_engine, game_phase, current_player)
     for client_writer in list(server.clients.keys()):
@@ -74,14 +74,6 @@ async def broadcast_state(server, game_engine, game_phase, current_player=None):
             await server.send_message(client_writer, serialized_state)
         except Exception as error:
             print(f"[Server] Failed to send state: {error}")
-            
-async def get_host_bet_input(prompt):
-    """Get bet input from the host."""
-    return await async_input(prompt)
-
-async def get_host_action_input(prompt):
-    """Get action input from the host."""
-    return await async_input(prompt)
 
 async def get_remote_bet_input(server, player_name):
     """Get bet input from a remote player."""
@@ -102,7 +94,15 @@ async def get_remote_action_input(server, player_name, action_prompt):
         message = await response_queue.get()
         if message and message.get("type") == "action_response":
             return message.get("action")
-        
+
+async def get_host_bet_input(prompt):
+    """Get bet input from the host."""
+    return await async_input(prompt)
+
+async def get_host_action_input(prompt):
+    """Get action input from the host."""
+    return await async_input(prompt)
+
 def create_remote_bet_input_function(server, player_name):
     """Create a function to get bet input for a specific remote player."""
     return lambda prompt: get_remote_bet_input(server, player_name)
@@ -191,7 +191,7 @@ async def play_game_round(game_engine, server, bet_input_strategy, action_input_
             print(f"{player.name} is out of chips! Adding 100 chips to keep playing.")
 
     await broadcast_state(server, game_engine, 'results')
-    
+
 async def start_multiplayer_game(host_name, server):
     """Start the multiplayer game with the given host and server."""
     player_names = [host_name] + list(server.clients.values())
@@ -233,7 +233,7 @@ async def start_multiplayer_game(host_name, server):
             player.reset_hand()
 
     print("[Host] Multiplayer game finished.")
-    
+
 async def initialize_host_game():
     """
     This function initializes the host game function by receiving the host's name and starting the server.
@@ -243,7 +243,7 @@ async def initialize_host_game():
     player_names = [host_name.strip()] 
     print("[Host] Starting server... Waiting for players to join.")
 
-    #Start server in background
+    # Start server in background
     server_task = asyncio.create_task(server.start())
 
     return host_name, server, player_names, server_task
@@ -269,9 +269,8 @@ async def host_game():
             server.server.close()
             await server.server.wait_closed()
         
-        #If the server task is running, cancel it
+        # If the server task is running, cancel it
         server_task.cancel()
-
 async def handle_lobby_messages(client, player_name):
     """Handle lobby messages from the server."""
     while True:
@@ -397,14 +396,11 @@ async def main():
     if mode == '1':
         await start_local_game()
     elif mode == '2':
-         await host_game()
+        await host_game()
     elif mode == '3':
-         await join_game()
+        await join_game()
     else:
         print("Invalid selection. Exiting.")
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
-#Dealer needs to not have his cards shown in the deal cards functions
-#When it is dealers turn, it should show the hidden card first
