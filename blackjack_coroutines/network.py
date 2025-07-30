@@ -4,24 +4,28 @@ import json
 class AsyncServer:
     def __init__(self, host='0.0.0.0', port=8765):
         """
-        Initializes the AsyncServer with a host and port.
+        Initialize the AsyncServer instance.
+        Args:
+            host (str, optional): The host address to bind the server. Defaults to '0.0.0.0'.
+            port (int, optional): The port number to bind the server. Defaults to 8765.
         """
         self.host = host
         self.port = port
         self.server = None
-        self.clients = {}
-        self.queues = {}
-        
+        self.clients = {}  # {writer: name}
+        self.queues = {}   # {name: asyncio.Queue}
+
     async def start(self):
         """
-        Starts the async server and starts listening for incoming connections.
+        Start the asynchronous server and begin listening for client connections.
+        Returns:
+            None
         """
-        
         self.server = await asyncio.start_server(self.handle_client, self.host, self.port)
         print(f"[Server] Listening on {self.host}:{self.port}")
         async with self.server:
             await self.server.serve_forever()
-            
+
     async def handle_client(self, reader, writer):
         """
         Handle a new client connection.
@@ -63,44 +67,45 @@ class AsyncServer:
             None
         """
         message_type = message.get("type")
-        
         if message_type == "join":
             name = message.get("name", "")
-            
             if not name:
                 await self.send_message(writer, {"type": "error", "message": "Name required."})
                 return
-            
             self.clients[writer] = name
             if name not in self.queues:
                 self.queues[name] = asyncio.Queue()
-                
             await self.broadcast_players()
-            
         elif message_type in ("bet_response", "action_response"):
             # Find player name for this writer
             name = self.clients.get(writer)
             if name and name in self.queues:
                 await self.queues[name].put(message)
-                
         else:
             print(f"[Server] Received: {message}")
 
     async def broadcast_players(self):
         """
-        Broadcast the list of players to all of the clients.
+        Broadcast the list of connected players to all clients.
+        Returns:
+            None
         """
         players = list(self.clients.values())
         message = {"type": "join_ack", "players": players}
-        for writer in list(self.clients.keys()):
+        for w in list(self.clients.keys()):
             try:
-                await self.send_message(writer, message)
-            except Exception as error:
-                print(f"[Server] Error sending message to client: {error}")
-                
+                await self.send_message(w, message)
+            except Exception as e:
+                print(f"[Server] Failed to send to client: {e}")
+
     async def send_message(self, writer, message_dict):
         """
         Send a JSON message to a client.
+        Args:
+            writer (asyncio.StreamWriter): The stream writer for the client.
+            message_dict (dict): The message to send.
+        Returns:
+            None
         """
         data = json.dumps(message_dict) + '\n'
         writer.write(data.encode())
@@ -109,6 +114,10 @@ class AsyncServer:
     async def recv_message(self, reader):
         """
         Receive a JSON message from a client.
+        Args:
+            reader (asyncio.StreamReader): The stream reader for the client.
+        Returns:
+            dict or None: The received message as a dictionary, or None if connection is closed.
         """
         line = await reader.readline()
         if not line:
@@ -118,21 +127,30 @@ class AsyncServer:
     def get_latest_response(self, writer):
         """
         Retrieve and remove the latest response for a given writer.
+        Args:
+            writer (asyncio.StreamWriter): The stream writer for the client.
+        Returns:
+            dict or None: The latest response, or None if not found.
         """
         return self.responses.pop(writer, None)
 
     def get_response_queue(self, name):
         """
-        Get the response queue for a player by name, creating it if it doesn't exist.
+        Get or create the response queue for a player by name.
+        Args:
+            name (str): The player's name.
+        Returns:
+            asyncio.Queue: The response queue for the player.
         """
         return self.queues.setdefault(name, asyncio.Queue())
 
-
-    
 class AsyncClient:
     def __init__(self, host: str = '127.0.0.1', port: int = 8765):
         """
         Initialize the AsyncClient instance.
+        Args:
+            host (str, optional): The server host to connect to. Defaults to '127.0.0.1'.
+            port (int, optional): The server port to connect to. Defaults to 8765.
         """
         self.host = host
         self.port = port
@@ -142,13 +160,19 @@ class AsyncClient:
     async def connect(self):
         """
         Connect to the server.
+        Returns:
+            None
         """
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
         print(f"[Client] Connected to {self.host}:{self.port}")
-        
+
     async def send_message(self, message_dict):
         """
         Send a JSON message to the server.
+        Args:
+            message_dict (dict): The message to send.
+        Returns:
+            None
         """
         if self.writer is None:
             raise RuntimeError("Not connected: writer is None")
@@ -159,6 +183,8 @@ class AsyncClient:
     async def recv_message(self):
         """
         Receive a JSON message from the server.
+        Returns:
+            dict or None: The received message as a dictionary, or None if connection is closed.
         """
         if self.reader is None:
             raise RuntimeError("Not connected: reader is None")
